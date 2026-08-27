@@ -76,10 +76,7 @@ function addDaysUtc(date: Date, days: number): Date {
  * Determina el `billingAnchorDay` inicial a partir de la fecha de inicio,
  * para frecuencias basadas en meses. `null` para semanal/diaria.
  */
-export function deriveInitialAnchorDay(
-  input: RecurrenceInput,
-  startDate: Date
-): number | null {
+export function deriveInitialAnchorDay(input: RecurrenceInput, startDate: Date): number | null {
   if (!isMonthBasedFrequency(input)) return null;
   return toUtcDateOnly(startDate).getUTCDate();
 }
@@ -88,10 +85,7 @@ export function deriveInitialAnchorDay(
  * Calcula la siguiente fecha de cobro a partir de la fecha de cobro
  * actual (o de la fecha de inicio, para el primer ciclo).
  */
-export function computeNextBillingDate(
-  input: RecurrenceInput,
-  currentDueDate: Date
-): Date {
+export function computeNextBillingDate(input: RecurrenceInput, currentDueDate: Date): Date {
   const current = toUtcDateOnly(currentDueDate);
 
   switch (input.billingFrequency) {
@@ -122,9 +116,7 @@ export function computeNextBillingDate(
           return addMonthsPreservingAnchor(current, count * 12, anchor);
         }
         default:
-          throw new Error(
-            "customIntervalUnit es obligatorio cuando billingFrequency es CUSTOM"
-          );
+          throw new Error("customIntervalUnit es obligatorio cuando billingFrequency es CUSTOM");
       }
     }
     default:

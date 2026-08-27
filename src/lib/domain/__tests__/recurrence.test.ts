@@ -136,12 +136,12 @@ describe("isMonthBasedFrequency / annualizedOccurrences", () => {
   it("identifica frecuencias basadas en meses", () => {
     expect(isMonthBasedFrequency({ billingFrequency: "MONTHLY" })).toBe(true);
     expect(isMonthBasedFrequency({ billingFrequency: "WEEKLY" })).toBe(false);
-    expect(
-      isMonthBasedFrequency({ billingFrequency: "CUSTOM", customIntervalUnit: "DAY" })
-    ).toBe(false);
-    expect(
-      isMonthBasedFrequency({ billingFrequency: "CUSTOM", customIntervalUnit: "YEAR" })
-    ).toBe(true);
+    expect(isMonthBasedFrequency({ billingFrequency: "CUSTOM", customIntervalUnit: "DAY" })).toBe(
+      false
+    );
+    expect(isMonthBasedFrequency({ billingFrequency: "CUSTOM", customIntervalUnit: "YEAR" })).toBe(
+      true
+    );
   });
 
   it("calcula ocurrencias anualizadas", () => {

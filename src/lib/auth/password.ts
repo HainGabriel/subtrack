@@ -4,7 +4,7 @@ import * as argon2 from "argon2";
  * argon2id con parámetros por encima del mínimo recomendado por OWASP
  * (m=19MiB por defecto de argon2 es débil para servidores modernos).
  */
-const HASH_OPTIONS: argon2.Options = {
+const HASH_OPTIONS: argon2.HashOptions = {
   type: argon2.argon2id,
   memoryCost: 65536, // 64 MiB
   timeCost: 3,
