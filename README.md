@@ -40,7 +40,7 @@ npm run build
 npm run start        # o: npm run dev, para desarrollo con recarga en caliente
 ```
 
-> **Nota sobre `next start`:** el proyecto usa `output: "standalone"` (necesario para la imagen Docker mínima). `npm run start` funciona para desarrollo/pruebas locales, pero para replicar exactamente el runtime de producción usa `node .next/standalone/server.js` (copiando antes `public/` y `.next/static/` dentro de `.next/standalone/`, como hace el `Dockerfile`).
+> **Nota sobre `output: "standalone"`:** solo se activa cuando `BUILD_STANDALONE=true` está presente (lo define el `Dockerfile`, para la imagen mínima). Sin esa variable, `npm run build` genera la salida estándar de Next — la que espera el adaptador de Netlify. Para replicar exactamente el runtime de Docker en local: `BUILD_STANDALONE=true npm run build && node .next/standalone/server.js` (copiando antes `public/` y `.next/static/` dentro de `.next/standalone/`, como hace el `Dockerfile`).
 
 ## Usuario de demostración
 
@@ -55,20 +55,20 @@ El seed es idempotente — `npx prisma db seed` se puede correr las veces que ha
 
 ## Scripts
 
-| Script | Qué hace |
-|---|---|
-| `npm run dev` | Servidor de desarrollo (Turbopack) |
-| `npm run build` | Build de producción |
-| `npm run start` | Sirve el build (`next start`) |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run format` / `format:check` | Prettier |
-| `npm run test` / `test:watch` / `test:coverage` | Vitest (unitarias/componentes) |
-| `npm run test:e2e` / `test:e2e:ui` | Playwright (end-to-end) |
-| `npm run db:migrate` | `prisma migrate dev` |
-| `npm run db:seed` | `prisma db seed` |
-| `npm run db:studio` | Prisma Studio |
-| `npm run db:generate` | Regenera el cliente de Prisma |
+| Script                                          | Qué hace                           |
+| ----------------------------------------------- | ---------------------------------- |
+| `npm run dev`                                   | Servidor de desarrollo (Turbopack) |
+| `npm run build`                                 | Build de producción                |
+| `npm run start`                                 | Sirve el build (`next start`)      |
+| `npm run lint`                                  | ESLint                             |
+| `npm run typecheck`                             | `tsc --noEmit`                     |
+| `npm run format` / `format:check`               | Prettier                           |
+| `npm run test` / `test:watch` / `test:coverage` | Vitest (unitarias/componentes)     |
+| `npm run test:e2e` / `test:e2e:ui`              | Playwright (end-to-end)            |
+| `npm run db:migrate`                            | `prisma migrate dev`               |
+| `npm run db:seed`                               | `prisma db seed`                   |
+| `npm run db:studio`                             | Prisma Studio                      |
+| `npm run db:generate`                           | Regenera el cliente de Prisma      |
 
 ## Variables de entorno
 
@@ -93,6 +93,7 @@ Ver [docs/TESTING.md](./docs/TESTING.md) para la estrategia completa y qué cubr
 - [docs/NOTIFICATIONS.md](./docs/NOTIFICATIONS.md) — cron, idempotencia, proveedores
 - [docs/TESTING.md](./docs/TESTING.md) — estrategia y comandos
 - [docs/USER_GUIDE.md](./docs/USER_GUIDE.md) — guía de uso en español, sin tecnicismos
+- [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) — desplegar en Netlify + Supabase
 - [CHANGELOG.md](./CHANGELOG.md) — historial de la entrega
 
 ## Estructura del proyecto

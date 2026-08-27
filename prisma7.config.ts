@@ -10,6 +10,11 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // El CLI (migrate/db seed/studio) necesita una conexión directa, no la
+    // agrupada con pgbouncer: Supabase (y cualquier pooler en modo
+    // transacción) no admite DDL/migraciones a través del pool. En local/
+    // Docker no hay distinción real, así que DIRECT_URL cae de vuelta a
+    // DATABASE_URL. Ver docs/DEPLOYMENT.md.
+    url: process.env["DIRECT_URL"] ?? process.env["DATABASE_URL"],
   },
 });

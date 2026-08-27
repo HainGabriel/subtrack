@@ -1,0 +1,20 @@
+# SubTrack en Netlify.
+#
+# El runtime de Next.js de Netlify se autodetecta y se gestiona solo — a
+# propósito NO se declara aquí el plugin @netlify/plugin-nextjs ni se fija
+# su versión (Netlify recomienda dejarlo autoadministrado). Este archivo
+# solo fija lo que sí necesita ser explícito: versión de Node y dónde
+# viven las funciones programadas (el cron de notificaciones).
+
+[build]
+  # `prisma generate` explícito (no un postinstall): un postinstall
+  # rompería el build de Docker, cuya etapa "deps" corre `npm ci` antes de
+  # copiar prisma/schema.prisma (ver Dockerfile) — mejor mantenerlo fuera
+  # del ciclo de vida de npm y declararlo aquí, solo para Netlify.
+  command = "npx prisma generate && npm run build"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"

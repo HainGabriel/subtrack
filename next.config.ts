@@ -29,7 +29,13 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // "standalone" produce un server.js autocontenido pensado para
+  // Docker/Node propio (ver Dockerfile). El adaptador de Netlify (y
+  // Vercel) hace su propio empaquetado por función a partir de la salida
+  // por defecto de `next build` — forzar "standalone" ahí puede romper
+  // esa división. Docker activa esto con BUILD_STANDALONE=true; Netlify
+  // no define esa variable, así que obtiene la salida por defecto.
+  ...(process.env.BUILD_STANDALONE === "true" ? { output: "standalone" as const } : {}),
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
