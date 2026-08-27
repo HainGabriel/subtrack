@@ -1,4 +1,6 @@
-import "server-only";
+// Sin `import "server-only"` a propósito: este módulo también se ejecuta
+// desde prisma/seed.ts vía `tsx`, fuera del bundler de Next — ver la misma
+// nota en provision-user.ts.
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { ActivityAction } from "@/generated/prisma/enums";
 import {

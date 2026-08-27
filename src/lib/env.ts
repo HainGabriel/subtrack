@@ -13,12 +13,9 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
-/**
- * Valida las variables de entorno una sola vez al arrancar el proceso.
- * Falla rápido y con un mensaje claro en vez de fallar más adelante
- * de forma confusa dentro de una request.
- */
-function loadEnv() {
+type Env = z.infer<typeof envSchema>;
+
+function loadEnv(): Env {
   const parsed = envSchema.safeParse(process.env);
   if (!parsed.success) {
     const issues = parsed.error.issues
@@ -31,4 +28,21 @@ function loadEnv() {
   return parsed.data;
 }
 
-export const env = loadEnv();
+let cached: Env | undefined;
+
+/**
+ * Validación perezosa (no al importar el módulo): `next build` analiza
+ * estáticamente las rutas en build-time, dentro de una etapa de Docker
+ * que deliberadamente NO tiene las variables reales (esas solo se
+ * inyectan en runtime vía `docker-compose.yml`/la plataforma de
+ * despliegue). Validar en el primer USO real, en vez de al importar,
+ * deja que el build termine sin secretos y sigue fallando rápido y con
+ * un mensaje claro en cuanto una request de verdad necesita una
+ * variable que falta.
+ */
+export const env: Env = new Proxy({} as Env, {
+  get(_target, prop: string) {
+    if (!cached) cached = loadEnv();
+    return cached[prop as keyof Env];
+  },
+});

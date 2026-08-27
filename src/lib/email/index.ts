@@ -23,7 +23,16 @@ export function getDevInbox(): CapturedEmail[] {
   return [...devInbox].reverse();
 }
 
-const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
+// Perezoso a propósito: leer `env.RESEND_API_KEY` al importar el módulo
+// rompe el build de Docker (`next build` analiza las rutas en una etapa
+// sin variables reales) — se resuelve en el primer envío real.
+let resend: Resend | null | undefined;
+function getResendClient(): Resend | null {
+  if (resend === undefined) {
+    resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
+  }
+  return resend;
+}
 
 /**
  * Envía un correo. En producción con RESEND_API_KEY configurado usa
@@ -33,6 +42,7 @@ const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
  * proveedor externo.
  */
 export async function sendEmail(email: OutgoingEmail): Promise<{ delivered: boolean }> {
+  const resend = getResendClient();
   if (resend) {
     const result = await resend.emails.send({
       from: env.EMAIL_FROM,

@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DATABASE_URL: postgresql://subtrack:subtrack_test_password@localhost:5432/subtrack_test?schema=public
+  AUTH_SECRET: ci-only-secret-not-for-production-0123456789
+  AUTH_URL: http://localhost:3000
+  CRON_SECRET: ci-only-cron-secret-not-for-production-0123
+  RESEND_API_KEY: ""
+  EMAIL_FROM: "SubTrack <notificaciones@subtrack.local>"
+  APP_DEFAULT_TIMEZONE: America/Santo_Domingo
+  APP_DEFAULT_CURRENCY: DOP
+  APP_DEFAULT_LOCALE: es
+  NODE_ENV: test
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: subtrack
+          POSTGRES_PASSWORD: subtrack_test_password
+          POSTGRES_DB: subtrack_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U subtrack -d subtrack_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias (lockfile bloqueado)
+        run: npm ci
+
+      - name: Generar cliente de Prisma
+        run: npx prisma generate
+
+      - name: Formato (Prettier)
+        run: npm run format:check
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Tipos (TypeScript)
+        run: npm run typecheck
+
+      - name: Aplicar migraciones en la base de datos temporal
+        run: npx prisma migrate deploy
+
+      - name: Pruebas unitarias (Vitest)
+        run: npm run test:coverage
+
+      - name: Build de producción
+        run: npm run build
+
+      - name: Instalar navegadores de Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Sembrar datos de desarrollo para E2E
+        run: npx prisma db seed
+
+      - name: Pruebas E2E (Playwright)
+        run: npm run test:e2e
+
+      - name: Subir reporte de Playwright
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

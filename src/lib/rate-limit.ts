@@ -50,7 +50,11 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateLim
 
 export const RATE_LIMITS = {
   login: { limit: 8, windowMs: 10 * 60 * 1000 },
-  register: { limit: 5, windowMs: 60 * 60 * 1000 },
+  // 20/hora por IP sigue disuadiendo la creación masiva de cuentas por
+  // script sin bloquear un uso legítimo intensivo (varias personas
+  // registrándose desde la misma IP/oficina, o una suite E2E completa
+  // corriendo contra un único proceso de servidor).
+  register: { limit: 20, windowMs: 60 * 60 * 1000 },
   passwordResetRequest: { limit: 4, windowMs: 30 * 60 * 1000 },
   passwordResetSubmit: { limit: 8, windowMs: 30 * 60 * 1000 },
   csvImport: { limit: 10, windowMs: 60 * 60 * 1000 },

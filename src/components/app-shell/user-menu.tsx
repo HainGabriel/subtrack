@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { signOutAction } from "@/lib/actions/auth-actions";
+import { signOut } from "next-auth/react";
 
 function initials(name: string) {
   return name
@@ -35,7 +35,7 @@ export function UserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-9 gap-2 px-2">
+        <Button variant="ghost" className="h-9 gap-2 px-2" aria-label={`Menú de usuario: ${name}`}>
           <Avatar className="size-6">
             {image && <AvatarImage src={image} alt={name} />}
             <AvatarFallback className="text-xs">{initials(name) || "U"}</AvatarFallback>
@@ -61,9 +61,12 @@ export function UserMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
-          onSelect={(e) => {
-            e.preventDefault();
-            void signOutAction();
+          onSelect={() => {
+            // signOut de "next-auth/react" (no la Server Action) porque hace
+            // una recarga completa de página al terminar: evita cualquier
+            // condición de carrera con el router cache de Next para el
+            // caso "cerrar sesión y volver a iniciar sesión de inmediato".
+            void signOut({ callbackUrl: "/" });
           }}
         >
           <LogOut className="size-4" />

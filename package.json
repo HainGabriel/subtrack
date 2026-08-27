@@ -16,7 +16,9 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
@@ -50,6 +52,7 @@
     "react-hook-form": "^7.86.0",
     "recharts": "^3.8.0",
     "resend": "^6.24.0",
+    "server-only": "^0.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0",
     "tailwind-variants": "^3.3.1",

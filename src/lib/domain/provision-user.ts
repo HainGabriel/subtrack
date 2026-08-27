@@ -1,4 +1,8 @@
-import "server-only";
+// Sin `import "server-only"` a propósito: este módulo también se ejecuta
+// desde prisma/seed.ts vía `tsx`, fuera del bundler de Next — el paquete
+// `server-only` lanza un error incondicional en ese contexto (solo se
+// vuelve un no-op dentro del build de Next). Nunca se importa desde un
+// componente cliente en esta app, así que la guarda no es necesaria aquí.
 import type { PrismaClient } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
 
