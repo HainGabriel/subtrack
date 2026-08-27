@@ -13,19 +13,26 @@ export default async function NotificacionesPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const user = await requireUser();
+  const authUser = await requireUser();
   const sp = await searchParams;
   const filter = sp.filtro === "no-leidas" ? "no-leidas" : "todas";
 
-  const notifications = await prisma.notification.findMany({
-    where: {
-      userId: user.id,
-      silenced: false,
-      ...(filter === "no-leidas" ? { isRead: false } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
+  const [user, notifications] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { id: authUser.id },
+      select: { settings: { select: { timezone: true } } },
+    }),
+    prisma.notification.findMany({
+      where: {
+        userId: authUser.id,
+        silenced: false,
+        ...(filter === "no-leidas" ? { isRead: false } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+  ]);
+  const timezone = user.settings?.timezone ?? "UTC";
 
   const rows: NotificationRow[] = notifications.map((n) => ({
     id: n.id,
@@ -45,7 +52,7 @@ export default async function NotificacionesPage({
           Avisos de renovaciones, presupuestos y métodos de pago próximos a vencer.
         </p>
       </div>
-      <NotificationList notifications={rows} filter={filter} />
+      <NotificationList notifications={rows} filter={filter} timezone={timezone} />
     </div>
   );
 }

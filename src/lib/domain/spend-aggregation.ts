@@ -240,13 +240,28 @@ export async function getAttentionItems(
 
   const renewalsSoon = await prisma.subscription.findMany({
     where: { userId, status: "ACTIVE", nextBillingDate: { lte: in3Days } },
-    select: { id: true, name: true },
+    select: { id: true, name: true, nextBillingDate: true },
   });
   for (const s of renewalsSoon) {
+    const daysUntil = Math.round(
+      (Date.UTC(
+        s.nextBillingDate.getUTCFullYear(),
+        s.nextBillingDate.getUTCMonth(),
+        s.nextBillingDate.getUTCDate()
+      ) -
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) /
+        86_400_000
+    );
+    const when =
+      daysUntil <= 0
+        ? "hoy"
+        : daysUntil === 1
+          ? "mañana"
+          : `en ${daysUntil} días`;
     items.push({
       type: "RENEWAL_SOON",
       severity: "warning",
-      label: `${s.name} se renueva en los próximos 3 días`,
+      label: `${s.name} se renueva ${when}`,
       href: `/suscripciones/${s.id}`,
     });
   }

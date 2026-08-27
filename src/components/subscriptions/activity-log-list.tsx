@@ -1,5 +1,4 @@
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { formatInUserTimezone } from "@/lib/domain/timezone";
 import {
   PlusCircle,
   Pencil,
@@ -34,7 +33,13 @@ export interface ActivityLogRow {
   createdAt: string;
 }
 
-export function ActivityLogList({ items }: { items: ActivityLogRow[] }) {
+export function ActivityLogList({
+  items,
+  timezone,
+}: {
+  items: ActivityLogRow[];
+  timezone: string;
+}) {
   if (items.length === 0) {
     return <p className="text-muted-foreground text-sm">Sin actividad registrada todavía.</p>;
   }
@@ -50,9 +55,7 @@ export function ActivityLogList({ items }: { items: ActivityLogRow[] }) {
             <div className="flex flex-1 items-baseline justify-between gap-2">
               <span>{config.label}</span>
               <span className="text-muted-foreground shrink-0 text-xs">
-                {format(new Date(item.createdAt), "d 'de' MMMM, yyyy 'a las' HH:mm", {
-                  locale: es,
-                })}
+                {formatInUserTimezone(item.createdAt, timezone, "d 'de' MMMM, yyyy 'a las' HH:mm")}
               </span>
             </div>
           </li>

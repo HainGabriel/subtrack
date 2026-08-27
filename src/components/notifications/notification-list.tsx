@@ -3,8 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { formatInUserTimezone } from "@/lib/domain/timezone";
 import {
   Bell,
   CalendarClock,
@@ -77,9 +76,11 @@ export interface NotificationRow {
 export function NotificationList({
   notifications,
   filter,
+  timezone,
 }: {
   notifications: NotificationRow[];
   filter: "todas" | "no-leidas";
+  timezone: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -201,7 +202,7 @@ export function NotificationList({
                   </ItemTitle>
                   <ItemDescription>{n.body}</ItemDescription>
                   <p className="text-muted-foreground mt-1 text-xs">
-                    {format(new Date(n.createdAt), "d 'de' MMMM, HH:mm", { locale: es })} ·{" "}
+                    {formatInUserTimezone(n.createdAt, timezone, "d 'de' MMMM, HH:mm")} ·{" "}
                     {config.label}
                   </p>
                 </ItemContent>

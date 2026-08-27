@@ -53,11 +53,17 @@ export default async function SubscriptionDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const user = await requireUser();
+  const authUser = await requireUser();
   const { id } = await params;
 
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: authUser.id },
+    select: { settings: { select: { timezone: true } } },
+  });
+  const timezone = user.settings?.timezone ?? "UTC";
+
   const subscription = await prisma.subscription.findFirst({
-    where: { id, userId: user.id },
+    where: { id, userId: authUser.id },
     include: {
       category: true,
       paymentMethod: true,
@@ -71,7 +77,7 @@ export default async function SubscriptionDetailPage({
   if (!subscription) notFound();
 
   const paymentMethods = await prisma.paymentMethod.findMany({
-    where: { userId: user.id, archivedAt: null },
+    where: { userId: authUser.id, archivedAt: null },
     orderBy: { alias: "asc" },
     select: { id: true, alias: true },
   });
@@ -286,6 +292,7 @@ export default async function SubscriptionDetailPage({
                   action: log.action,
                   createdAt: log.createdAt.toISOString(),
                 }))}
+                timezone={timezone}
               />
             </CardContent>
           </Card>

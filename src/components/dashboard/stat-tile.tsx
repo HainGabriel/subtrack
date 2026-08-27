@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatMoney } from "@/lib/domain/money";
@@ -59,7 +60,10 @@ export function StatTile({ title, icon: Icon, summary, hint, className }: StatTi
               ))}
             </dl>
             <p className="text-muted-foreground mt-1 text-xs">
-              Sin tasa de cambio registrada para consolidar en una sola moneda.
+              Sin tasa de cambio registrada para consolidar en una sola moneda.{" "}
+              <Link href="/perfil" className="underline underline-offset-2">
+                Agregar tasa
+              </Link>
             </p>
           </div>
         )}

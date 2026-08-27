@@ -365,6 +365,10 @@ export function SubscriptionForm({
 
           <Field data-invalid={!!form.formState.errors.startDate}>
             <FieldLabel htmlFor="startDate">Fecha de inicio</FieldLabel>
+            <FieldDescription>
+              La fecha del primer cobro previsto (si ya la pagaste antes, usa la fecha del{" "}
+              <strong>próximo</strong> cobro, no cuándo empezaste a usarla).
+            </FieldDescription>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
