@@ -1,0 +1,66 @@
+name: subtrack
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: subtrack
+      POSTGRES_PASSWORD: subtrack_dev_password
+      POSTGRES_DB: subtrack
+    ports:
+      - "5432:5432"
+    volumes:
+      - subtrack_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U subtrack -d subtrack"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://subtrack:subtrack_dev_password@db:5432/subtrack?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:?falta AUTH_SECRET en .env}
+      AUTH_URL: ${AUTH_URL:-http://localhost:3000}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-SubTrack <notificaciones@subtrack.local>}
+      CRON_SECRET: ${CRON_SECRET:?falta CRON_SECRET en .env}
+      APP_DEFAULT_TIMEZONE: ${APP_DEFAULT_TIMEZONE:-America/Santo_Domingo}
+      APP_DEFAULT_CURRENCY: ${APP_DEFAULT_CURRENCY:-DOP}
+      APP_DEFAULT_LOCALE: ${APP_DEFAULT_LOCALE:-es}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # Ejecuta el job de notificaciones cada 15 minutos llamando al endpoint
+  # protegido. Ver docs/NOTIFICATIONS.md para producción (Vercel Cron, etc.).
+  cron:
+    image: alpine:3.20
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      CRON_SECRET: ${CRON_SECRET:?falta CRON_SECRET en .env}
+    entrypoint: >
+      sh -c "apk add --no-cache curl >/dev/null &&
+      while true; do
+        curl -sf -X POST -H \"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/notifications || true;
+        sleep 900;
+      done"
+
+volumes:
+  subtrack_db_data:
