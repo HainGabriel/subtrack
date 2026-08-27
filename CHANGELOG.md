@@ -69,6 +69,12 @@
 - La validación de variables de entorno y la construcción del cliente de Prisma se movieron a inicialización perezosa: hacerlo al importar el módulo rompía el build de Docker, que corre `next build` antes de que existan las variables de entorno reales de runtime.
 - Una sesión válida que apunta a un usuario eliminado ahora se limpia con gracia (`/api/auth/clear-session`) en vez de crashear.
 
+### Corregido durante el despliegue a producción (Netlify + Supabase)
+
+- `proxy.ts` importaba la configuración completa de Auth.js (con el proveedor Credentials, que usa `argon2`, un binario nativo) — el runtime de Middleware de Netlify no soporta addons nativos y el build fallaba con "Usage of unsupported C++ Addon(s) found in Node.js Middleware". Se separó `src/lib/auth/config.ts` (configuración JWT sin proveedores) del resto de `src/lib/auth/index.ts`, y el proxy ahora solo importa la primera.
+- Configurar `NODE_ENV=production` como variable de entorno del sitio en Netlify hacía que `npm install` omitiera `devDependencies` durante el build (p. ej. `@tailwindcss/postcss`), rompiendo la compilación — Netlify Functions ya reciben `NODE_ENV=production` automáticamente en su propio runtime, así que no hace falta declararla.
+- Confirmado en despliegue real: Next.js 16 con `proxy.ts` funciona correctamente en el runtime de Netlify (protección de rutas verificada con `curl`, redirección 307 a `/iniciar-sesion` sin sesión).
+
 ### Limitaciones conocidas
 
 - Verificación de correo electrónico (el campo existe en el esquema, el flujo no está implementado en esta entrega).

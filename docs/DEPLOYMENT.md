@@ -1,90 +1,83 @@
 # Desplegar SubTrack: Netlify (app) + Supabase (base de datos)
 
-Esta guía asume que ya tienes el repositorio funcionando en local (ver [README.md](../README.md)). Cubre exactamente los pasos para llevarlo a producción con Netlify + Supabase.
+Este documento describe el despliegue real ya realizado (sitio en producción: **https://subtrack-app-672.netlify.app**, base de datos en el proyecto de Supabase `oqbsepcfojfgktlchaau`, región `us-west-2`) y sirve como referencia si necesitas repetirlo (otro entorno, staging, o reconstruir desde cero).
 
 **Lo que ya está preparado en el código** (no necesitas tocar nada de esto):
 
-- `next.config.ts` ya NO fuerza `output: "standalone"` salvo que la variable `BUILD_STANDALONE=true` esté presente (la pone el `Dockerfile`; Netlify no la define, así que obtiene la salida estándar que su adaptador espera).
-- `prisma7.config.ts` usa `DIRECT_URL` para migraciones si existe, y cae de vuelta a `DATABASE_URL` si no (así local/Docker no necesitan nada nuevo).
+- `next.config.ts` — `output: "standalone"` solo se activa con `BUILD_STANDALONE=true` (la define el `Dockerfile`; Netlify no la define, así que obtiene la salida estándar que su adaptador espera).
+- `prisma7.config.ts` — usa `DIRECT_URL` para migraciones si existe, cae de vuelta a `DATABASE_URL` si no.
 - `netlify.toml` — comando de build (`prisma generate` + `next build`), versión de Node, carpeta de funciones.
-- `netlify/functions/notifications-cron.mts` — Scheduled Function que reemplaza al servicio `cron` de `docker-compose.yml`: llama a `POST /api/cron/notifications` cada 15 minutos, reutilizando el mismo endpoint ya probado.
+- `netlify/functions/notifications-cron.mts` — Scheduled Function (cada 15 min) que reemplaza al servicio `cron` de `docker-compose.yml`, llamando a `POST /api/cron/notifications`.
+- `src/lib/auth/config.ts` — configuración de Auth.js sin proveedores, usada por `src/proxy.ts` para que el Proxy no arrastre `argon2` (ver "Problemas reales" abajo).
 
 ## Parte 1 — Base de datos en Supabase
 
-1. Crea una cuenta en [supabase.com](https://supabase.com) y un **New project** (elige una región cercana a tus usuarios; guarda la contraseña de la base de datos que definas ahí, la vas a necesitar).
-2. Espera a que aprovisione el proyecto (1-2 minutos).
-3. Ve a **Project Settings → Database → Connection string**. Supabase ofrece varias variantes — necesitas dos:
-   - **Transaction pooler** (puerto `6543`) → esta es tu `DATABASE_URL`. Agrégale `?pgbouncer=true` al final si Supabase no lo incluye ya. La app la usa en runtime a través de un driver adapter (`@prisma/adapter-pg`), que sí funciona bien con el pool en modo transacción.
-   - **Session pooler o conexión directa** (puerto `5432`) → esta es tu `DIRECT_URL`. Solo la usan las migraciones (`prisma migrate deploy`) — Supabase no permite ejecutar DDL a través del pool en modo transacción.
+1. Crear proyecto en [supabase.com](https://supabase.com/dashboard) (o por CLI: `npx supabase projects create NOMBRE --org-id ID --db-password PASS --region us-west-2`, con `npx supabase login --token <personal access token de supabase.com/dashboard/account/tokens>`).
+2. Obtener las cadenas de conexión — **dos, no una**:
+   - `DATABASE_URL` (runtime de la app): *transaction pooler*, puerto `6543`, con `?pgbouncer=true`.
+   - `DIRECT_URL` (solo migraciones): *session pooler*, mismo host, puerto `5432`, sin `pgbouncer=true` — Supabase no permite DDL a través del pool en modo transacción.
 
-   Ejemplo de forma (sustituye host/usuario/contraseña reales):
+   Formato real (con el usuario del pooler, no `postgres` a secas):
    ```
-   DATABASE_URL="postgresql://postgres.xxxxxxxx:TU_PASSWORD@aws-0-xx-xxxx-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
-   DIRECT_URL="postgresql://postgres.xxxxxxxx:TU_PASSWORD@aws-0-xx-xxxx-1.pooler.supabase.com:5432/postgres"
+   DATABASE_URL="postgresql://postgres.<project-ref>:<PASSWORD>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true"
+   DIRECT_URL="postgresql://postgres.<project-ref>:<PASSWORD>@aws-0-<region>.pooler.supabase.com:5432/postgres"
    ```
-   > Supabase también documenta crear un rol de base de datos dedicado llamado `prisma` para esta integración (ver su [guía oficial de Prisma](https://supabase.com/docs/guides/database/prisma)) — es un paso opcional de refinamiento, no obligatorio para que esto funcione.
-
-4. Aplica las migraciones ya existentes del repo contra Supabase (desde tu máquina, una sola vez):
+   Estos valores se pueden obtener por API sin pasar por el dashboard: `PATCH /v1/projects/{ref}/database/password` para fijar la contraseña, `GET /v1/projects/{ref}/config/database/pooler` para host/usuario/puerto (ver [Management API Reference](https://supabase.com/docs/reference/api/introduction)).
+3. Aplicar las migraciones:
    ```bash
-   DATABASE_URL="...pooler...6543...?pgbouncer=true" \
-   DIRECT_URL="...pooler...5432..." \
-   npx prisma migrate deploy
+   DATABASE_URL="...6543...?pgbouncer=true" DIRECT_URL="...5432..." npx prisma migrate deploy
    ```
-5. **Opcional** — solo si quieres datos de ejemplo en esa base (normalmente NO en una base de producción real): `npx prisma db seed` con las mismas variables.
+4. Seed de datos demo: **opcional**, se decidió no sembrarlos en este despliegue (la base quedó vacía a propósito, para registrarse con una cuenta real). Para hacerlo después: mismas variables + `npx prisma db seed`.
 
 ## Parte 2 — App en Netlify
 
-### Si el código no está en GitHub todavía
-
-Netlify puede desplegar por Git (recomendado, con auto-deploy en cada push) o directo desde tu máquina con la CLI. Para lo primero necesitas un repositorio en GitHub/GitLab/Bitbucket — dime si quieres que prepare el push (tendría que crear el repo remoto contigo, o puedes crearlo tú y pasarme la URL).
-
-### Opción A — Por el dashboard de Netlify (recomendada, con auto-deploy)
-
-1. En [app.netlify.com](https://app.netlify.com) → **Add new site → Import an existing project**, conecta tu proveedor de Git y elige este repositorio.
-2. Netlify detecta Next.js automáticamente. Confirma el build command (`npx prisma generate && npm run build`, ya viene de `netlify.toml`).
-3. Antes de desplegar (o justo después, en **Site settings → Environment variables**), agrega TODAS estas variables (mismos valores/formato que tu `.env`, ver [`.env.example`](../.env.example)):
-
-   | Variable | Valor en producción |
-   |---|---|
-   | `DATABASE_URL` | La del *transaction pooler* de Supabase (puerto 6543, con `?pgbouncer=true`) |
-   | `DIRECT_URL` | La *session pooler*/directa de Supabase (puerto 5432) |
-   | `AUTH_SECRET` | Genera uno nuevo y distinto al de desarrollo: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
-   | `AUTH_URL` | La URL real de tu sitio, ej. `https://tu-sitio.netlify.app` (o tu dominio propio) |
-   | `RESEND_API_KEY` | Tu clave real de [resend.com](https://resend.com) — en serverless la bandeja de desarrollo en memoria no sirve, así que esto es importante en producción |
-   | `EMAIL_FROM` | Un remitente verificado en Resend |
-   | `CRON_SECRET` | Genera uno nuevo (no reuses el de desarrollo): `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-   | `APP_DEFAULT_TIMEZONE` | `America/Santo_Domingo` (o la que prefieras) |
-   | `APP_DEFAULT_CURRENCY` | `DOP` |
-   | `APP_DEFAULT_LOCALE` | `es` |
-   | `NODE_ENV` | `production` |
-
-4. Despliega. Sigue el log de build — si algo falla por variables faltantes, el error de `src/lib/env.ts` te dice exactamente cuál.
-
-### Opción B — Por CLI, sin conectar Git
+Se usó la CLI (`npx netlify-cli`, sin instalación global) en vez del dashboard:
 
 ```bash
-npm install -g netlify-cli
-netlify login          # abre el navegador para autenticarte — hazlo tú
-netlify init            # crea o vincula el sitio
-netlify env:set DATABASE_URL "..."
-netlify env:set DIRECT_URL "..."
-# ... (repite para cada variable de la tabla de arriba)
-netlify deploy --prod
+npx netlify-cli login                      # abre el navegador, autenticación interactiva
+npx netlify-cli sites:create --name subtrack-app   # crea el sitio, lo vincula a esta carpeta
+npx netlify-cli env:set DATABASE_URL "..."         # una vez por variable — ver tabla abajo
+# ...
+npx netlify-cli deploy --prod              # build + deploy
 ```
 
-## Verificación después del primer despliegue
+**Nota real:** el primer intento de `deploy --prod` (build local en Windows) falló con `EPERM: symlink` — el plugin de Next.js de Netlify necesita crear symlinks que Windows bloquea sin permisos de administrador/Modo desarrollador. La solución que se usó: conectar el sitio a un repositorio de GitHub (`git remote add origin ... && git push`, y luego enlazar el repo desde **Site settings → Build & deploy → Link repository** en el dashboard — este paso de autorización de la GitHub App sí lo tiene que hacer el dueño de la cuenta). Con eso, Netlify construye en sus propios servidores Linux, sin el problema de symlinks.
 
-1. Abre la URL del sitio — debe verse la landing (no un error).
-2. `https://tu-sitio.netlify.app/api/health` debe responder `{"status":"ok"}`.
-3. Intenta entrar a `/panel` **sin sesión** — debe redirigir a `/iniciar-sesion`, no mostrar un error de servidor. Esto depende de que el runtime de Netlify soporte `proxy.ts` (la convención de Next 16, renombrada desde `middleware.ts`) — no pude confirmarlo al 100% desde la documentación pública al momento de preparar esto, así que es el punto más importante a revisar tú mismo tras el primer deploy. Si falla, dímelo y lo ajustamos (por ejemplo, agregando una comprobación equivalente al inicio de cada página protegida, aunque `requireUser()` ya cubre esa capa en cada Server Action).
-4. Regístrate con una cuenta nueva y completa el onboarding.
-5. En Netlify: pestaña **Functions** → confirma que `notifications-cron` aparece programada. Puedes invocarla manualmente desde ahí para probarla antes de esperar los 15 minutos.
+### Variables de entorno configuradas
 
-## Lo que necesito de ti si quieres que yo ejecute el despliegue
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | Pooler de Supabase, puerto 6543, `pgbouncer=true` |
+| `DIRECT_URL` | Pooler de Supabase, puerto 5432 |
+| `AUTH_SECRET` | Generado con `crypto.randomBytes(32)` |
+| `AUTH_URL` | `https://subtrack-app-672.netlify.app` |
+| `CRON_SECRET` | Generado con `crypto.randomBytes(32)` |
+| `APP_DEFAULT_TIMEZONE` / `_CURRENCY` / `_LOCALE` | `America/Santo_Domingo` / `DOP` / `es` |
+| `EMAIL_FROM` | Placeholder `SubTrack <notificaciones@subtrack.local>` — **no envía correos reales** hasta que se configure `RESEND_API_KEY` |
+| `RESEND_API_KEY` | **No configurada todavía** — sin ella, el registro/recuperación de contraseña funcionan pero el correo de bienvenida y de recuperación no se envían de verdad (se descartan silenciosamente en producción; ver limitación abajo) |
+| `NODE_VERSION` | `22` (la fija `netlify.toml`) |
 
-No tengo acceso a tus cuentas de Supabase/Netlify ni debo crear cuentas o recursos en la nube a tu nombre sin que tú lo autorices y estés presente. Puedo ayudarte de dos formas:
+**`NODE_ENV` deliberadamente NO está seteada como variable de Netlify** — ver "Problemas reales" abajo.
 
-- **Guiarte paso a paso** mientras tú haces clic en las pantallas (puedo controlar el navegador contigo mirando, si lo prefieres).
-- **Ejecutar comandos de CLI yo mismo**, si tú corres `netlify login` (te sale un enlace, `! netlify login`) y me confirmas que quedó autenticado en esta máquina — desde ahí sí puedo correr `netlify env:set`, `netlify deploy`, etc. por ti. Para Supabase no hay CLI de login interactivo necesario si me pasas las cadenas de conexión ya generadas desde tu dashboard (puedo entonces correr `prisma migrate deploy` yo mismo).
+## Problemas reales encontrados y corregidos durante este despliegue
 
-Cuando tengas el proyecto de Supabase creado (o quieras que lo hagamos juntos ahora), dime y seguimos.
+1. **`argon2` (binario nativo) rompía el build**: `src/proxy.ts` importaba la configuración completa de Auth.js, que incluye el proveedor Credentials (usa `argon2` para verificar contraseñas). El runtime de Proxy/Middleware de Netlify no soporta addons nativos de C++. Solución: `src/lib/auth/config.ts` con la configuración SIN proveedores, compartida por `proxy.ts` (que solo necesita decodificar el JWT, nunca verificar contraseñas) y por `src/lib/auth/index.ts` (que sí agrega el proveedor Credentials, para el resto de la app).
+2. **`NODE_ENV=production` como variable de Netlify rompía el build**: con esa variable puesta, `npm install` en el paso de build omite `devDependencies` — y `@tailwindcss/postcss`, `typescript`, etc. son necesarios para compilar aunque no se usen en runtime. Las Netlify Functions ya reciben `NODE_ENV=production` automáticamente en su propio runtime sin que hiciera falta declararlo. Solución: no setear `NODE_ENV` como variable de sitio.
+3. **Build local en Windows fallaba por symlinks** (`EPERM`) — no es un bug del proyecto, es una limitación de Windows sin permisos elevados/Modo desarrollador. Resuelto conectando el sitio a GitHub para que Netlify construya en sus servidores.
+
+Ninguno de estos tres era detectable sin intentar el despliegue real — quedan documentados aquí para que no se repitan si se recrea el sitio desde cero.
+
+## Verificado funcionando en producción
+
+- `GET /api/health` → `{"status":"ok"}` (conexión a Supabase confirmada).
+- `GET /panel` sin sesión → `307` a `/iniciar-sesion` (Proxy de Next 16 SÍ funciona en Netlify — no era seguro de antemano, se confirmó con el deploy real).
+- Cookies con `Secure`/`__Host-` correctamente aplicadas (Auth.js detecta HTTPS).
+- Cabeceras de seguridad (CSP, X-Frame-Options) presentes; Netlify añade además HSTS automáticamente.
+- Flujo completo probado en el navegador: registro → onboarding → panel, con una cuenta de prueba (creada y luego eliminada de la base para no ensuciar los datos reales).
+- `netlify functions:list` confirma `notifications-cron` desplegada.
+
+## Pendiente / próximos pasos
+
+- **Configurar `RESEND_API_KEY`** para que los correos (bienvenida, recuperación de contraseña) se envíen de verdad: `npx netlify-cli env:set RESEND_API_KEY "re_..."` y `EMAIL_FROM` con un remitente verificado en Resend, luego `npx netlify-cli deploy --trigger --prod`.
+- Dominio propio (opcional): Site settings → Domain management, y actualizar `AUTH_URL` al nuevo dominio.
+- Verificar en unos minutos que la Scheduled Function `notifications-cron` corrió al menos una vez (pestaña **Functions** del sitio en el dashboard de Netlify).
