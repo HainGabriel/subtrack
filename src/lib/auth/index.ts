@@ -4,12 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/auth/password";
 import { loginSchema } from "@/lib/validation/auth";
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { authConfig } from "@/lib/auth/config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/iniciar-sesion",
-  },
+  ...authConfig,
   providers: [
     Credentials({
       name: "Credenciales",
@@ -44,14 +42,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    jwt({ token, user }) {
-      if (user?.id) token.id = user.id;
-      return token;
-    },
-    session({ session, token }) {
-      if (session.user && token.id) session.user.id = token.id as string;
-      return session;
-    },
-  },
 });
